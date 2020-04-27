@@ -1,6 +1,69 @@
 - hosts: localhost
   become: true
   tasks:
+  - name: Set timezone to America/Los_Angeles
+    timezone:
+      name: America/Los_Angeles
+
+
+
+  - name: Install XTerm
+    apt: name=xterm
   - name: Install notion
     apt: name=notion
 
+
+
+  - name: Open VPN
+    apt: name=openvpn
+
+
+
+  - name: Chrome Repo Key
+    apt_key:
+      url: https://dl.google.com/linux/linux_signing_key.pub
+      state: present
+
+  - name: Chrome Repo
+    apt_repository:
+      repo: deb http://dl.google.com/linux/chrome/deb/ stable main
+      state: present
+      filename: google-chrome
+
+  - name: Chrome Install
+    apt: name=google-chrome-stable
+
+
+
+
+
+
+  - name: Bazel Key
+    apt_key:
+      url: https://bazel.build/bazel-release.pub.gpg
+      state: present
+
+  - name: Bazel Repo
+    apt_repository:
+      repo: deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8
+      state: present
+
+  - name: Bazel Install
+    apt: name=bazel
+
+
+
+  - name: Docker Key
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+
+  - name: Docker Repo
+    apt_repository:
+      repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
+      state: present
+
+  - name: Docker Install
+    apt: name=docker-ce
+    apt: name=docker-ce-cli
+    apt: name=containerd
