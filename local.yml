@@ -1,21 +1,70 @@
 - hosts: localhost
   become: true
+
+  vars:
+    hostname: phantom
+    ubuntu_version: focal
+    timezone: America/Los_Angeles
+
   tasks:
-  - name: Set timezone to America/Los_Angeles
+
+  # Machine-global configuration
+  #- name: Disable timers for unattended upgrade 1
+  #  ansible.builtin.systemd:
+  #    name: apt-daily.timer
+  #    enabled: no
+  #- name: Disable timers for unattended upgrade 2
+  #  ansible.builtin.systemd:
+  #    name: apt-daily-upgrade.timer
+  #    enabled: no
+
+  #- name: Reload systemctl daemon to apply the new changes
+  #  ansible.builtin.systemd:
+  #    daemon_reload: yes
+  #
+  # Syncing time is only relevant for testing, because of the VM's outdated date.
+  #- name: Sync time
+  #  raw: date -s "{{ lookup('pipe', 'date') }}"
+
+  #- name: Wait for any possibly running unattended upgrade to finish
+  #  shell:
+  #    cmd: systemd-run --property="After=apt-daily.service apt-daily-upgrade.service" --wait /bin/true >> /home/{{ username }}/ansible_apt_upgrades.log
+  #    creates: /home/{{ username }}/ansible_apt_upgrades.log
+
+  #- name: Purge unattended upgrades package
+  #  apt:
+  #    purge: yes
+  #    name: unattended-upgrades
+
+  - name: Update apt cache
+    apt:
+      update_cache: yes
+
+
+  - name: Set hostname
+    ansible.builtin.hostname:
+      name: "{{ hostname }}"
+      
+  - name: Set timezone
     timezone:
-      name: America/Los_Angeles
+      name: "{{ timezone }}"
 
 
-
-  - name: Install XTerm
-    apt: name=xterm
-  - name: Install notion
-    apt: name=notion
-
-
-
-  - name: Open VPN
-    apt: name=openvpn
+  - name: Install Apt Packages
+    apt:
+      name:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - mlocate
+      - gnupg-agent
+      - software-properties-common
+      - xterm
+      - notion
+      - vim
+      - git
+      - net-tools
+      - openvpn
 
 
 
@@ -35,9 +84,6 @@
 
 
 
-
-
-
   - name: Bazel Key
     apt_key:
       url: https://bazel.build/bazel-release.pub.gpg
@@ -48,11 +94,6 @@
       repo: deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8
       state: present
 
-  - name: Bazel Install
-    apt: name=bazel
-
-
-
   - name: Docker Key
     apt_key:
       url: https://download.docker.com/linux/ubuntu/gpg
@@ -60,10 +101,100 @@
 
   - name: Docker Repo
     apt_repository:
-      repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable
+      repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ubuntu_version }} stable
       state: present
 
+  - name: Update apt cache
+    apt:
+      update_cache: yes
+
+  - name: Bazel Install
+    apt: name=bazel
+
   - name: Docker Install
-    apt: name=docker-ce
-    apt: name=docker-ce-cli
-    apt: name=containerd
+    apt:
+      name: docker-ce
+    register: task_docker_install_var
+    until: task_docker_install_var is not failed
+    retries: 5
+
+  - name: Docker Install CLI
+    apt:
+      name: docker-ce-cli
+
+  - name: Docker Install Containerd
+    apt:
+      name: containerd
+
+  - name: Create docker group
+    ansible.builtin.group:
+      name: docker
+      state: present
+      gid: 1750
+
+  - name: Start Docker daemon
+    sysvinit:
+      name: docker
+      state: started
+      enabled: yes
+
+
+  # User-specific configuration
+  - name: Add user to docker group
+    user:
+      name: "{{ username }}"
+      groups: docker
+      append: yes
+
+  - name: Create HOME/bin
+    become: yes
+    become_user: "{{ username }}"
+    ansible.builtin.file:
+      path: "/home/{{ username }}/bin"
+      state: directory
+      owner: "{{ username }}"
+      group: "{{ username }}"
+
+  - name: Create HOME/src
+    become: yes
+    become_user: "{{ username }}"
+    ansible.builtin.file:
+      path: /home/{{username}}/src
+      state: directory
+      owner: "{{ username }}"
+      group: "{{ username }}"
+
+
+
+  - name: Golang Download
+    become: yes
+    become_user: "{{ username }}"
+    get_url:
+     url: https://golang.org/dl/go1.16.linux-amd64.tar.gz       
+     dest: /tmp/go_install.tar.gz
+     checksum: sha256:013a489ebb3e24ef3d915abe5b94c3286c070dfe0818d5bca8108f1d6e8440d2
+
+  - name: Golang Unpack
+    become: yes
+    become_user: "{{ username }}"
+    ansible.builtin.unarchive:
+      src: /tmp/go_install.tar.gz
+      dest: "/home/{{ username }}"
+
+
+  - name: Get Dotfiles Repo
+    become: yes
+    become_user: "{{ username }}"
+    ansible.builtin.git:
+      repo: "https://github.com/{{ username }}/dotfiles"
+      dest: "/home/{{ username }}/src/dotfiles"
+      update: no
+
+  - name: Run Dotfiles
+    become: yes
+    become_user: "{{ username }}"
+    shell:
+      cmd: "/home/{{ username }}/src/dotfiles/bootstrap.sh '{{ realname }}' {{ user_email }} >> /home/{{ username }}/dotfiles.log"
+      creates: "/home/{{ username }}/dotfiles.log"
+
+
