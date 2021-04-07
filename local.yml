@@ -65,6 +65,7 @@
       - git
       - net-tools
       - openvpn
+      - samba
 
 
 
