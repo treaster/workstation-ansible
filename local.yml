@@ -56,18 +56,17 @@
       - apt-transport-https
       - ca-certificates
       - curl
-      - mlocate
-      - gnupg-agent
-      - software-properties-common
-      - xterm
-      - notion
-      - vim
       - git
+      - gnupg-agent
+      - mlocate
       - net-tools
+      - notion
       - openvpn
       - samba
-
-
+      - software-properties-common
+      - sqlite3
+      - vim
+      - xterm
 
   - name: Chrome Repo Key
     apt_key:
